@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Omogle — Face Scanner</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050508;--panel:#0d0d12;--border:#1a1a2e;
+  --green:#00ff88;--green2:rgba(0,255,136,0.12);
+  --gold:#f5c842;--gold2:rgba(245,200,66,0.12);
+  --blue:#00d4ff;--red:#ff4444;
+  --text:#e8e8f0;--text2:#707080;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden}
+
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* TOP */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;height:48px;background:#030305;border-bottom:1px solid var(--border);
+  flex-shrink:0;z-index:10;
+}
+.logo{font-size:18px;font-weight:800;letter-spacing:-0.5px}
+.logo em{color:var(--gold);font-style:normal}
+.logo span{font-size:11px;font-weight:400;color:var(--text2);margin-left:8px;letter-spacing:0.08em;text-transform:uppercase}
+
+/* MAIN */
+.main{display:flex;flex:1;min-height:0}
+
+/* CAMERA */
+.cam-col{
+  flex:1;position:relative;background:#000;min-width:0;
+  display:flex;align-items:center;justify-content:center;
+}
+#video{display:none}
+#canvas{width:100%;height:100%;object-fit:cover;display:block}
+
+/* SCAN OVERLAY */
+.scan-corner{position:absolute;width:28px;height:28px;border-color:var(--green);border-style:solid;opacity:0.8}
+.scan-corner.tl{top:20px;left:20px;border-width:2px 0 0 2px}
+.scan-corner.tr{top:20px;right:20px;border-width:2px 2px 0 0}
+.scan-corner.bl{bottom:20px;left:20px;border-width:0 0 2px 2px}
+.scan-corner.br{bottom:20px;right:20px;border-width:0 2px 2px 0}
+
+.scan-line{
+  position:absolute;left:20px;right:20px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--green),transparent);
+  opacity:0.5;top:50%;
+  animation:scanLine 3s ease-in-out infinite;
+}
+@keyframes scanLine{0%,100%{top:20%;opacity:0.3}50%{top:80%;opacity:0.7}}
+
+/* TIMER */
+.timer-ring{
+  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.timer-num{font-size:42px;font-weight:800;color:var(--green);text-shadow:0 0 20px rgba(0,255,136,0.5);line-height:1}
+.timer-label{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text2)}
+
+/* BIG SCORE OVERLAY */
+.score-overlay{
+  position:absolute;inset:0;background:rgba(5,5,8,0.92);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+  z-index:20;opacity:0;pointer-events:none;transition:opacity 0.5s;
+}
+.score-overlay.show{opacity:1;pointer-events:all}
+.final-label{font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:var(--text2)}
+.final-score-num{
+  font-size:96px;font-weight:900;line-height:1;letter-spacing:-3px;
+  color:var(--gold);text-shadow:0 0 40px rgba(245,200,66,0.4);
+}
+.final-tier{font-size:22px;font-weight:700;color:var(--green);letter-spacing:0.05em}
+.scan-again-btn{
+  margin-top:10px;padding:12px 32px;border-radius:8px;
+  background:var(--gold);color:#000;font-size:14px;font-weight:700;
+  border:none;cursor:pointer;transition:all .15s;letter-spacing:0.03em;
+}
+.scan-again-btn:hover{background:#e6a800}
+
+/* CONNECTING */
+.loading-overlay{
+  position:absolute;inset:0;background:rgba(5,5,8,0.95);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  z-index:30;
+}
+.loading-overlay.hidden{display:none}
+.load-spin{width:36px;height:36px;border:2px solid #1a1a2e;border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-text{font-size:13px;color:var(--text2)}
+.load-sub{font-size:11px;color:#404050}
+
+/* RIGHT PANEL */
+.right-panel{
+  width:300px;flex-shrink:0;background:var(--panel);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.panel-head{
+  padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.panel-title{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text2)}
+.live-badge{
+  display:flex;align-items:center;gap:5px;
+  font-size:10px;letter-spacing:0.08em;color:var(--green);text-transform:uppercase;
+}
+.live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* METRICS */
+.metrics{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+.metrics::-webkit-scrollbar{width:3px}
+.metrics::-webkit-scrollbar-thumb{background:#1a1a2e;border-radius:2px}
+
+.metric{display:flex;flex-direction:column;gap:6px}
+.metric-row{display:flex;align-items:center;justify-content:space-between}
+.metric-name{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px}
+.metric-icon{font-size:14px}
+.metric-val{font-size:14px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums;min-width:32px;text-align:right}
+.metric-bar-bg{height:4px;background:#1a1a2e;border-radius:2px;overflow:hidden}
+.metric-bar{height:100%;border-radius:2px;transition:width 0.2s ease;background:var(--green);width:0%}
+.metric-desc{font-size:10px;color:#404050;letter-spacing:0.03em}
+
+/* TOTAL SCORE */
+.total-section{
+  padding:14px 18px;border-top:1px solid var(--border);flex-shrink:0;
+  display:flex;flex-direction:column;gap:10px;
+}
+.total-row{display:flex;align-items:center;justify-content:space-between}
+.total-label{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text2)}
+.total-score{font-size:32px;font-weight:900;color:var(--gold);text-shadow:0 0 20px rgba(245,200,66,0.3)}
+.tier-badge{
+  font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.05em;text-transform:uppercase;
+}
+
+/* START BUTTON */
+.start-wrap{padding:14px 18px;flex-shrink:0;border-top:1px solid var(--border)}
+.start-btn{
+  width:100%;padding:13px;border-radius:9px;border:none;cursor:pointer;
+  font-size:14px;font-weight:700;letter-spacing:0.04em;transition:all .15s;
+}
+.start-btn.ready{background:var(--green);color:#000}
+.start-btn.ready:hover{background:#00e07a;transform:translateY(-1px)}
+.start-btn.scanning{background:#1a1a2e;color:var(--text2);cursor:default}
+.start-btn.done{background:var(--gold);color:#000}
+.start-btn.done:hover{background:#e6a800}
+
+/* INSTRUCTIONS */
+.instructions{
+  padding:14px 18px;background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.1);
+  border-radius:8px;margin:14px;flex-shrink:0;
+  font-size:11px;color:var(--text2);line-height:1.7;
+}
+.instructions b{color:var(--green);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px}
+
+/* NO FACE */
+.no-face{
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.3);
+  color:var(--red);font-size:11px;padding:5px 12px;border-radius:20px;
+  letter-spacing:0.05em;white-space:nowrap;
+  opacity:0;transition:opacity 0.3s;
+}
+.no-face.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="logo">Omogle<em>.</em> <span>Face Scanner</span></div>
+    <div style="font-size:11px;color:#404050">Powered by MediaPipe</div>
+  </div>
+
+  <div class="main">
+    <!-- CAMERA -->
+    <div class="cam-col">
+      <video id="video" playsinline></video>
+      <canvas id="canvas"></canvas>
+
+      <div class="scan-corner tl"></div>
+      <div class="scan-corner tr"></div>
+      <div class="scan-corner bl"></div>
+      <div class="scan-corner br"></div>
+      <div class="scan-line" id="scan-line" style="display:none"></div>
+
+      <div class="no-face" id="no-face">No face detected</div>
+
+      <div class="timer-ring" id="timer-ring" style="display:none">
+        <div class="timer-num" id="timer-num">20</div>
+        <div class="timer-label">seconds remaining</div>
+      </div>
+
+      <!-- FINAL SCORE OVERLAY -->
+      <div class="score-overlay" id="score-overlay">
+        <div class="final-label">Your Mog Score</div>
+        <div class="final-score-num" id="final-score-num">—</div>
+        <div class="final-tier" id="final-tier">—</div>
+        <button class="scan-again-btn" onclick="resetScan()">Scan Again</button>
+      </div>
+
+      <!-- LOADING -->
+      <div class="loading-overlay" id="loading-overlay">
+        <div class="load-spin"></div>
+        <div class="load-text">Loading face scanner...</div>
+        <div class="load-sub">Downloading AI models (~8MB)</div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+      <div class="panel-head">
+        <div class="panel-title">Live Analysis</div>
+        <div class="live-badge" id="live-badge" style="opacity:0">
+          <div class="live-dot"></div>LIVE
+        </div>
+      </div>
+
+      <div class="instructions" id="instructions">
+        <b>How to scan</b>
+        Face the camera straight on.<br>
+        Neutral expression. Good lighting.<br>
+        Hit <b style="color:var(--gold)">Start Scan</b> — hold still for 20 seconds.<br>
+        Your average score is calculated.
+      </div>
+
+      <div class="metrics" id="metrics">
+        <!-- Metric cards injected by JS -->
+      </div>
+
+      <div class="total-section">
+        <div class="total-row">
+          <div class="total-label">Mog Score</div>
+          <div class="total-score" id="total-score">—</div>
+        </div>
+        <div style="height:6px;background:#0d0d12;border-radius:3px;overflow:hidden">
+          <div id="total-bar" style="height:100%;background:linear-gradient(90deg,var(--green),var(--gold));border-radius:3px;width:0%;transition:width 0.3s"></div>
+        </div>
+        <div id="tier-badge" class="tier-badge" style="display:none"></div>
+      </div>
+
+      <div class="start-wrap">
+        <button class="start-btn ready" id="start-btn" onclick="handleStart()">Start Scan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<video id="video" style="display:none" playsinline></video>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ── METRIC CONFIG ─────────────────────────────────────────────────────────────
+const METRIC_DEFS = [
+  { id:'canthal',  icon:'👁️',  name:'Canthal Tilt',    desc:'Outer eye corner angle — upward slant = masculine' },
+  { id:'jaw',      icon:'🗿',  name:'Jaw Definition',   desc:'Jaw angle sharpness & chin projection' },
+  { id:'symmetry', icon:'⚖️',  name:'Facial Symmetry',  desc:'Left-right balance of features' },
+  { id:'ratio',    icon:'📐',  name:'Facial Ratio',     desc:'Thirds proportion — forehead:mid:lower' },
+  { id:'eyes',     icon:'✨',  name:'Eye Set',          desc:'Eye spacing & opening size' },
+  { id:'bone',     icon:'💎',  name:'Bone Structure',   desc:'Cheekbone width relative to jaw' },
+];
+
+const WEIGHTS = { canthal:0.22, jaw:0.22, symmetry:0.18, ratio:0.15, eyes:0.13, bone:0.10 };
+
+const TIERS = [
+  { min:90, label:'GIGA MOG',    color:'#ff4444' },
+  { min:80, label:'HUNTER',      color:'#f5c842' },
+  { min:70, label:'ABOVE AVERAGE', color:'#00ff88' },
+  { min:60, label:'AVERAGE',     color:'#00d4ff' },
+  { min:50, label:'BELOW AVG',   color:'#888' },
+  { min:0,  label:'NEEDS WORK',  color:'#555' },
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────────
+let faceMesh = null, camera = null;
+let scanning = false, done = false;
+let timeLeft = 20;
+let countdownInterval = null;
+let currentScores = {};
+let scoreHistory = { canthal:[], jaw:[], symmetry:[], ratio:[], eyes:[], bone:[] };
+let latestLandmarks = null;
+let noFaceTimer = null;
+let modelReady = false;
+
+// ── BUILD UI ──────────────────────────────────────────────────────────────────
+function buildMetrics() {
+  const container = document.getElementById('metrics');
+  container.innerHTML = METRIC_DEFS.map(m => `
+    <div class="metric" id="metric-${m.id}">
+      <div class="metric-row">
+        <div class="metric-name"><span class="metric-icon">${m.icon}</span>${m.name}</div>
+        <div class="metric-val" id="val-${m.id}">—</div>
+      </div>
+      <div class="metric-bar-bg"><div class="metric-bar" id="bar-${m.id}"></div></div>
+      <div class="metric-desc">${m.desc}</div>
+    </div>
+  `).join('');
+}
+
+// ── MEDIAPIPE ─────────────────────────────────────────────────────────────────
+function initFaceMesh() {
+  faceMesh = new FaceMesh({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+  });
+
+  faceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
+  faceMesh.onResults(onResults);
+
+  const video = document.getElementById('video');
+  camera = new Camera(video, {
+    onFrame: async () => { await faceMesh.send({ image: video }); },
+    width: 640, height: 480,
+  });
+
+  camera.start().then(() => {
+    document.getElementById('loading-overlay').classList.add('hidden');
+    modelReady = true;
+  }).catch(e => {
+    document.getElementById('loading-overlay').innerHTML =
+      `<div style="color:#ff4444;font-size:13px;text-align:center;padding:20px">Camera access denied.<br><br>Please allow camera and refresh.</div>`;
+  });
+}
+
+// ── DRAW RESULTS ──────────────────────────────────────────────────────────────
+function onResults(results) {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const video = document.getElementById('video');
+
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+
+  const w = canvas.width, h = canvas.height;
+  const scaleX = w / video.videoWidth;
+  const scaleY = h / video.videoHeight;
+
+  ctx.save();
+  ctx.scale(-1, 1); ctx.translate(-w, 0); // mirror
+  ctx.drawImage(results.image, 0, 0, w, h);
+  ctx.restore();
+
+  if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+    latestLandmarks = results.multiFaceLandmarks[0];
+    showNoFace(false);
+
+    const lm = latestLandmarks;
+
+    // Draw minimal face mesh
+    ctx.save();
+    ctx.scale(-1,1); ctx.translate(-w,0);
+
+    // Glow effect
+    ctx.shadowColor = '#00ff88';
+    ctx.shadowBlur = scanning ? 8 : 4;
+
+    // Draw key contours
+    const pts = (indices) => indices.map(i => ({
+      x: lm[i].x * w,
+      y: lm[i].y * h
+    }));
+
+    const drawPath = (indices, close=false, alpha=0.6) => {
+      const p = pts(indices);
+      ctx.beginPath();
+      ctx.moveTo(p[0].x, p[0].y);
+      for(let i=1;i<p.length;i++) ctx.lineTo(p[i].x, p[i].y);
+      if(close) ctx.closePath();
+      ctx.strokeStyle = `rgba(0,255,136,${alpha})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    };
+
+    // Face oval
+    drawPath([10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10], true, scanning?0.8:0.4);
+
+    // Eyes
+    drawPath([33,7,163,144,145,153,154,155,133], true, 0.9);
+    drawPath([362,382,381,380,374,373,390,249,263], true, 0.9);
+
+    // Nose
+    drawPath([168,6,197,195,5,4,1,19,94], false, 0.6);
+
+    // Mouth
+    drawPath([78,95,88,178,87,14,317,402,318,324,308], false, 0.6);
+
+    // Eye highlight dots
+    [[33,0.9],[263,0.9],[133,0.7],[362,0.7]].forEach(([i,a]) => {
+      ctx.beginPath();
+      ctx.arc(lm[i].x*w, lm[i].y*h, 2.5, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(0,255,136,${a})`;
+      ctx.fill();
+    });
+
+    // Jaw points
+    [172,397,152].forEach(i => {
+      ctx.beginPath();
+      ctx.arc(lm[i].x*w, lm[i].y*h, 3, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(245,200,66,0.8)';
+      ctx.fill();
+    });
+
+    ctx.restore();
+
+    if (scanning) {
+      const scores = calcScores(lm);
+      currentScores = scores;
+      METRIC_DEFS.forEach(m => {
+        scoreHistory[m.id].push(scores[m.id]);
+      });
+      updateUI(scores);
+    }
+  } else {
+    latestLandmarks = null;
+    showNoFace(scanning);
+  }
+}
+
+// ── SCORE CALCULATION ──────────────────────────────────────────────────────────
+function calcScores(lm) {
+  const w = 1, h = 1;
+  const pt = i => ({ x: lm[i].x, y: lm[i].y, z: lm[i].z || 0 });
+  const dist = (a, b) => Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);
+  const angle = (a, b) => Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI;
+
+  // Face dimensions
+  const faceW = dist(pt(234), pt(454));
+  const faceH = dist(pt(10), pt(152));
+
+  // 1. CANTHAL TILT
+  // Positive = outer corner higher than inner = attractive
+  const leftTilt = (pt(133).y - pt(33).y) / faceH;  // positive = outer higher
+  const rightTilt = (pt(362).y - pt(263).y) / faceH;
+  const avgTilt = (leftTilt + rightTilt) / 2;
+  // Map: -0.02 (neg tilt) to +0.06 (pos tilt) -> 30 to 95
+  const canthal = clamp(((avgTilt + 0.02) / 0.08) * 65 + 30, 20, 98);
+
+  // 2. JAW DEFINITION
+  // Gonial angle sharpness
+  const leftGon = pt(172), rightGon = pt(397), chin = pt(152);
+  const leftEarP = pt(234), rightEarP = pt(454);
+  
+  function gonialAngle(ear, gon, ch) {
+    const v1 = { x: ear.x-gon.x, y: ear.y-gon.y };
+    const v2 = { x: ch.x-gon.x, y: ch.y-gon.y };
+    const dot = v1.x*v2.x + v1.y*v2.y;
+    const mag = Math.sqrt(v1.x**2+v1.y**2) * Math.sqrt(v2.x**2+v2.y**2);
+    return Math.acos(Math.max(-1,Math.min(1,dot/mag))) * 180/Math.PI;
+  }
+  const gL = gonialAngle(leftEarP, leftGon, chin);
+  const gR = gonialAngle(rightEarP, rightGon, chin);
+  const avgGonial = (gL + gR) / 2;
+  // Sharp jaw = lower gonial angle. Map: 160->30, 110->90
+  const jaw = clamp((160 - avgGonial) * 1.2 + 30, 20, 98);
+
+  // 3. SYMMETRY
+  // Compare distances of left/right landmark pairs
+  const pairs = [
+    [33,263],[70,300],[105,334],[107,336],[226,446],
+    [172,397],[58,288],[172,397],[93,323],[36,266]
+  ];
+  let symDiffs = [];
+  pairs.forEach(([l,r]) => {
+    const dLeft = dist(pt(l), pt(8));   // dist to face center
+    const dRight = dist(pt(r), pt(8));
+    symDiffs.push(Math.abs(dLeft - dRight) / faceW);
+  });
+  const avgDiff = symDiffs.reduce((a,b)=>a+b,0) / symDiffs.length;
+  const symmetry = clamp((1 - avgDiff * 20) * 65 + 35, 30, 98);
+
+  // 4. FACIAL RATIO (thirds)
+  const browY = (pt(70).y + pt(300).y) / 2;
+  const noseBaseY = pt(2).y;
+  const chinY = pt(152).y;
+  const topY = pt(10).y;
+  
+  const upper = browY - topY;
+  const mid = noseBaseY - browY;
+  const lower = chinY - noseBaseY;
+  const total = upper + mid + lower;
+  
+  // Ideal thirds: 1:1:1
+  const upperRatio = upper/total, midRatio = mid/total, lowerRatio = lower/total;
+  const deviation = Math.abs(upperRatio - 0.333) + Math.abs(midRatio - 0.333) + Math.abs(lowerRatio - 0.333);
+  const ratio = clamp((1 - deviation * 3) * 50 + 50, 30, 98);
+
+  // 5. EYE SET
+  // Ideal interpupillary distance = ~46% of face width
+  const ipd = dist(pt(468), pt(473)); // pupils (with refined landmarks)
+  const ipdRatio = ipd / faceW;
+  const ipdScore = clamp((1 - Math.abs(ipdRatio - 0.46) * 10) * 50 + 45, 30, 95);
+  
+  // Eye openness
+  const leftOpen = dist(pt(159), pt(145)) / faceH;
+  const rightOpen = dist(pt(386), pt(374)) / faceH;
+  const avgOpen = (leftOpen + rightOpen) / 2;
+  const openScore = clamp(avgOpen * 400 + 40, 30, 95);
+  
+  const eyes = clamp((ipdScore + openScore) / 2, 25, 97);
+
+  // 6. BONE STRUCTURE (cheekbone width vs jaw width)
+  const cheekW = dist(pt(116), pt(345));
+  const jawW = dist(pt(172), pt(397));
+  const cheekJawRatio = cheekW / jawW;
+  // Ideal: cheekbones wider than jaw (ratio ~1.1-1.3)
+  const bone = clamp((cheekJawRatio - 0.8) / 0.6 * 60 + 35, 25, 97);
+
+  // Add personality variance so it's not perfectly flat
+  const scores = { canthal, jaw, symmetry, ratio, eyes, bone };
+
+  // Small random walk to make it feel "live" (±2 points)
+  METRIC_DEFS.forEach(m => {
+    scores[m.id] = clamp(scores[m.id] + (Math.random()-0.5)*4, 10, 99);
+  });
+
+  return scores;
+}
+
+function calcTotal(scores) {
+  return Object.entries(WEIGHTS).reduce((sum, [k,w]) => sum + (scores[k]||50)*w, 0);
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function getTier(score) {
+  return TIERS.find(t => score >= t.min) || TIERS[TIERS.length-1];
+}
+
+// ── UI UPDATE ──────────────────────────────────────────────────────────────────
+function updateUI(scores) {
+  METRIC_DEFS.forEach(m => {
+    const val = scores[m.id];
+    document.getElementById(`val-${m.id}`).textContent = Math.round(val);
+    document.getElementById(`bar-${m.id}`).style.width = val + '%';
+    
+    // Color by score
+    const color = val >= 75 ? '#00ff88' : val >= 55 ? '#f5c842' : '#ff6644';
+    document.getElementById(`bar-${m.id}`).style.background = color;
+    document.getElementById(`val-${m.id}`).style.color = color;
+  });
+
+  const total = calcTotal(scores);
+  document.getElementById('total-score').textContent = Math.round(total);
+  document.getElementById('total-bar').style.width = total + '%';
+
+  const tier = getTier(total);
+  const badge = document.getElementById('tier-badge');
+  badge.style.display = 'inline-block';
+  badge.textContent = tier.label;
+  badge.style.background = tier.color + '22';
+  badge.style.color = tier.color;
+  badge.style.border = `1px solid ${tier.color}44`;
+}
+
+function showNoFace(show) {
+  document.getElementById('no-face').classList.toggle('show', show);
+}
+
+// ── SCAN CONTROL ───────────────────────────────────────────────────────────────
+function handleStart() {
+  if (!modelReady) return;
+  if (done) { resetScan(); return; }
+  if (scanning) return;
+  startScan();
+}
+
+function startScan() {
+  scanning = true; done = false;
+  timeLeft = 20;
+  scoreHistory = { canthal:[], jaw:[], symmetry:[], ratio:[], eyes:[], bone:[] };
+
+  document.getElementById('start-btn').className = 'start-btn scanning';
+  document.getElementById('start-btn').textContent = 'Scanning...';
+  document.getElementById('scan-line').style.display = 'block';
+  document.getElementById('timer-ring').style.display = 'flex';
+  document.getElementById('timer-num').textContent = 20;
+  document.getElementById('live-badge').style.opacity = '1';
+  document.getElementById('instructions').style.display = 'none';
+
+  countdownInterval = setInterval(() => {
+    timeLeft--;
+    document.getElementById('timer-num').textContent = timeLeft;
+    if (timeLeft <= 5) {
+      document.getElementById('timer-num').style.color = '#ff4444';
+      document.getElementById('timer-num').style.textShadow = '0 0 20px rgba(255,68,68,0.5)';
+    }
+    if (timeLeft <= 0) { finishScan(); }
+  }, 1000);
+}
+
+function finishScan() {
+  clearInterval(countdownInterval);
+  scanning = false; done = true;
+
+  // Average the scores
+  const avgScores = {};
+  METRIC_DEFS.forEach(m => {
+    const hist = scoreHistory[m.id];
+    avgScores[m.id] = hist.length > 0
+      ? hist.reduce((a,b)=>a+b,0) / hist.length
+      : 50;
+  });
+
+  updateUI(avgScores);
+  const total = Math.round(calcTotal(avgScores));
+  const tier = getTier(total);
+
+  // Show final overlay
+  document.getElementById('final-score-num').textContent = total;
+  document.getElementById('final-tier').textContent = tier.label;
+  document.getElementById('final-tier').style.color = tier.color;
+  document.getElementById('score-overlay').classList.add('show');
+
+  document.getElementById('scan-line').style.display = 'none';
+  document.getElementById('timer-ring').style.display = 'none';
+  document.getElementById('live-badge').style.opacity = '0';
+  document.getElementById('start-btn').className = 'start-btn done';
+  document.getElementById('start-btn').textContent = 'Scan Again';
+
+  // Store for Omogle integration
+  window.lastMogScore = total;
+  window.dispatchEvent(new CustomEvent('mogScoreReady', { detail: { score: total, scores: avgScores, tier: tier.label } }));
+}
+
+function resetScan() {
+  done = false; scanning = false;
+  scoreHistory = { canthal:[], jaw:[], symmetry:[], ratio:[], eyes:[], bone:[] };
+  document.getElementById('score-overlay').classList.remove('show');
+  document.getElementById('start-btn').className = 'start-btn ready';
+  document.getElementById('start-btn').textContent = 'Start Scan';
+  document.getElementById('timer-num').style.color = 'var(--green)';
+  document.getElementById('timer-num').style.textShadow = '0 0 20px rgba(0,255,136,0.5)';
+  document.getElementById('instructions').style.display = 'block';
+  document.getElementById('tier-badge').style.display = 'none';
+  document.getElementById('total-score').textContent = '—';
+  document.getElementById('total-bar').style.width = '0%';
+  METRIC_DEFS.forEach(m => {
+    document.getElementById(`val-${m.id}`).textContent = '—';
+    document.getElementById(`bar-${m.id}`).style.width = '0%';
+  });
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────────
+buildMetrics();
+
+// Wait for MediaPipe to load
+window.addEventListener('load', () => {
+  setTimeout(initFaceMesh, 500);
+});
+</script>
+</body>
+</html>

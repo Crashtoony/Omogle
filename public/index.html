@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Omogle — Out-Mog Your Stranger</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0e0e;--bg2:#161616;--bg3:#1f1f1f;--bg4:#272727;
+  --border:#2a2a2a;--border2:#383838;
+  --text:#f5f5f5;--text2:#999;--text3:#555;
+  --gold:#f5c842;--gold2:#e6a800;
+  --blue:#3b82f6;--red:#ef4444;--green:#22c55e;
+  --mog:#f5c842;
+}
+html,body{height:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text);overflow:hidden}
+
+/* ── APP SHELL ── */
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* TOPBAR */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;height:46px;background:#090909;border-bottom:1px solid #1a1a1a;flex-shrink:0;
+}
+.logo{font-size:20px;font-weight:800;letter-spacing:-0.5px}
+.logo em{color:var(--gold);font-style:normal}
+.logo small{font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;letter-spacing:0.03em}
+.online-ct{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:5px}
+.green-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green)}
+
+/* MAIN */
+.main{display:flex;flex:1;min-height:0}
+
+/* ── VIDEO SECTION ── */
+.video-col{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+
+/* SCORE BANNER */
+.score-banner{
+  position:absolute;top:0;left:0;right:0;z-index:20;
+  display:flex;align-items:stretch;height:44px;
+  background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.score-half{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
+  font-size:13px;font-weight:700;
+}
+.score-half.you-score{color:var(--gold)}
+.score-half.them-score{color:var(--text2)}
+.score-num{font-size:22px;font-weight:800;line-height:1}
+.score-divider{width:1px;background:rgba(255,255,255,0.08);margin:8px 0}
+.score-label{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;opacity:0.7}
+
+/* CHALLENGE BANNER */
+.challenge-bar{
+  position:absolute;top:44px;left:0;right:0;z-index:20;
+  display:flex;align-items:center;justify-content:center;
+  padding:8px 16px;
+  background:linear-gradient(90deg,rgba(245,200,66,0.15),rgba(245,200,66,0.08));
+  border-bottom:1px solid rgba(245,200,66,0.2);
+  font-size:13px;font-weight:600;color:var(--gold);
+  min-height:36px;text-align:center;
+  transition:opacity 0.3s;
+}
+.challenge-bar.hidden{opacity:0;pointer-events:none}
+
+.videos{
+  display:grid;grid-template-columns:1fr 1fr;gap:2px;background:#000;
+  flex:1;padding-top:80px;
+}
+.vid-wrap{position:relative;background:#0a0a0a;overflow:hidden}
+video{width:100%;height:100%;object-fit:cover;display:block}
+#you-vid{transform:scaleX(-1)}
+
+.vid-tag{
+  position:absolute;bottom:10px;left:10px;z-index:5;
+  font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;
+  color:rgba(255,255,255,0.75);background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:4px;
+}
+.vid-tag.you-tag{color:var(--gold);background:rgba(0,0,0,0.6);border:1px solid rgba(245,200,66,0.3)}
+
+/* MOG POINT animation overlay */
+.mog-flash{
+  position:absolute;inset:0;z-index:15;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity 0.1s;
+}
+.mog-flash.show{opacity:1}
+.mog-flash.fade{opacity:0;transition:opacity 0.6s}
+.mog-text{font-size:56px;font-weight:900;color:var(--gold);text-shadow:0 0 30px rgba(245,200,66,0.8);letter-spacing:-1px}
+
+/* reaction float */
+.reaction-float{
+  position:absolute;bottom:60px;right:14px;z-index:30;
+  font-size:36px;pointer-events:none;
+  animation:floatUp 1.5s ease forwards;
+}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-80px) scale(1.4)}}
+
+/* placeholder */
+.vid-ph{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;color:var(--text3);pointer-events:none;
+}
+.vid-ph svg{opacity:0.15}
+.vid-ph span{font-size:12px}
+
+/* connecting overlay */
+#conn-overlay{
+  position:absolute;inset:0;z-index:25;background:rgba(0,0,0,0.92);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  transition:opacity 0.3s;
+}
+#conn-overlay.gone{opacity:0;pointer-events:none}
+.spin{width:32px;height:32px;border:2px solid #2a2a2a;border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.conn-lbl{font-size:14px;color:var(--text2)}
+.conn-sub{font-size:11px;color:var(--text3)}
+
+/* ── RIGHT PANEL ── */
+.right-panel{
+  width:270px;flex-shrink:0;display:flex;flex-direction:column;
+  background:var(--bg2);border-left:1px solid var(--border);
+}
+
+/* MOG BUTTONS */
+.mog-section{
+  padding:14px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.mog-label{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:10px;text-align:center}
+.mog-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mog-btn{
+  padding:10px 8px;border-radius:9px;border:none;cursor:pointer;font-weight:700;font-size:12px;
+  letter-spacing:0.03em;transition:all 0.12s;display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.mog-btn:active{transform:scale(0.95)}
+.mog-btn:disabled{opacity:0.3;cursor:default;transform:none}
+.mog-btn .emoji{font-size:22px;line-height:1}
+.btn-they-mogged{background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.25)}
+.btn-they-mogged:hover:not(:disabled){background:rgba(239,68,68,0.22)}
+.btn-i-mogged{background:rgba(245,200,66,0.12);color:var(--gold);border:1px solid rgba(245,200,66,0.3)}
+.btn-i-mogged:hover:not(:disabled){background:rgba(245,200,66,0.22)}
+
+.challenge-btn-wrap{margin-top:10px}
+.challenge-btn{
+  width:100%;padding:9px;border-radius:8px;border:1px solid var(--border2);
+  background:var(--bg3);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;
+  transition:all 0.12s;
+}
+.challenge-btn:hover{background:var(--bg4);color:var(--text)}
+.challenge-btn:disabled{opacity:0.3;cursor:default}
+
+/* REACTIONS */
+.reactions-section{
+  padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.reactions-label{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:8px}
+.reactions{display:flex;gap:6px;flex-wrap:wrap}
+.react-btn{
+  background:var(--bg3);border:1px solid var(--border);border-radius:7px;
+  padding:6px 10px;font-size:18px;cursor:pointer;transition:all 0.1s;
+}
+.react-btn:hover{background:var(--bg4);transform:scale(1.15)}
+.react-btn:active{transform:scale(0.9)}
+
+/* CHAT */
+.chat-head{
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:all 0.3s}
+.sdot.on{background:var(--green);box-shadow:0 0 5px var(--green)}
+.sdot.pulse{background:#fbbf24;animation:blink 0.8s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+.slabel{font-size:12px;color:var(--text2);flex:1}
+
+.msgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:5px}
+.msgs::-webkit-scrollbar{width:3px}
+.msgs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.sysmsg{text-align:center;font-size:11px;color:var(--text3);padding:4px 0;font-style:italic}
+.sysmsg b{color:var(--text2);font-style:normal}
+.msgrow{display:flex;flex-direction:column;gap:2px;animation:pop 0.12s ease}
+@keyframes pop{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.msgrow.you{align-items:flex-end}.msgrow.them{align-items:flex-start}
+.msglbl{font-size:10px;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;padding:0 3px}
+.bubble{padding:7px 11px;border-radius:13px;font-size:13px;line-height:1.5;max-width:195px;word-break:break-word;white-space:pre-wrap}
+.msgrow.you .bubble{background:var(--blue);color:#fff;border-bottom-right-radius:3px}
+.msgrow.them .bubble{background:var(--bg4);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:3px}
+.typing-ind{display:flex;align-items:center;gap:4px;padding:8px 11px;background:var(--bg4);border:1px solid var(--border);border-radius:13px;border-bottom-left-radius:3px;width:fit-content}
+.td{width:5px;height:5px;border-radius:50%;background:var(--text3);animation:td 1.1s infinite}
+.td:nth-child(2){animation-delay:.2s}.td:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+
+.chat-input-area{padding:9px;border-top:1px solid var(--border);display:flex;gap:7px;flex-shrink:0}
+#msg-in{
+  flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text);
+  font-family:inherit;font-size:13px;padding:8px 11px;border-radius:8px;
+  outline:none;resize:none;line-height:1.4;max-height:70px;
+}
+#msg-in:focus{border-color:var(--blue)}
+#msg-in::placeholder{color:var(--text3)}
+#send-btn{
+  background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:8px 12px;font-size:14px;cursor:pointer;transition:all .12s;
+}
+#send-btn:hover{background:#2563eb}
+#send-btn:active{transform:scale(.95)}
+#send-btn:disabled{opacity:.35;cursor:default;transform:none}
+
+/* BOTTOM BAR */
+.bottombar{
+  padding:9px 16px;background:#090909;border-top:1px solid #1a1a1a;
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.btns{display:flex;gap:8px}
+.btn{padding:8px 18px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .12s}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.35;cursor:default;transform:none}
+.btn-stop{background:var(--red);color:#fff}.btn-stop:hover:not(:disabled){background:#dc2626}
+.btn-next{background:var(--bg3);color:var(--text);border:1px solid var(--border2)}.btn-next:hover:not(:disabled){background:var(--bg4)}
+.barinfo{font-size:11px;color:var(--text3)}
+
+/* SPLASH */
+#splash{
+  position:fixed;inset:0;z-index:100;background:#090909;
+  display:flex;align-items:center;justify-content:center;
+}
+.sp-inner{text-align:center;max-width:480px;padding:40px 24px}
+.sp-logo{font-size:58px;font-weight:900;letter-spacing:-2px;color:#fff;margin-bottom:6px}
+.sp-logo em{color:var(--gold);font-style:normal}
+.sp-tag{font-size:16px;color:var(--text2);margin-bottom:10px;font-weight:500}
+.sp-desc{font-size:13px;color:var(--text3);margin-bottom:32px;line-height:1.7}
+.sp-how{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:32px;
+}
+.sp-step{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 10px;font-size:12px;color:var(--text2);line-height:1.5}
+.sp-step .icon{font-size:22px;margin-bottom:6px}
+.sp-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
+.sp-btn{padding:13px 30px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;border:none;transition:all .15s}
+.sp-main{background:var(--gold);color:#000}.sp-main:hover{background:var(--gold2);transform:translateY(-1px)}
+.sp-sec{background:transparent;color:var(--text2);border:1px solid var(--border2)}.sp-sec:hover{background:var(--bg2)}
+.sp-note{font-size:11px;color:var(--text3);line-height:1.7}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="sp-inner">
+    <div class="sp-logo">Omogle<em>.</em></div>
+    <div class="sp-tag">Out-mog your stranger. They judge you. You judge them.</div>
+    <div class="sp-desc">Get matched with a random person on camera.<br>Complete challenges. Vote who mogged harder. Win.</div>
+    <div class="sp-how">
+      <div class="sp-step"><div class="icon">🎲</div>Get matched with a stranger</div>
+      <div class="sp-step"><div class="icon">📸</div>A challenge appears — perform it</div>
+      <div class="sp-step"><div class="icon">👑</div>Vote who mogged. Score tracked.</div>
+    </div>
+    <div class="sp-btns">
+      <button class="sp-btn sp-main" onclick="startWithCam()">📹 Start Mogging</button>
+      <button class="sp-btn sp-sec" onclick="startTextOnly()">No cam</button>
+    </div>
+    <div class="sp-note">Peer-to-peer video. No recording. Skip any time.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app">
+  <div class="topbar">
+    <div class="logo">Omogle<em>.</em> <small>out-mog your stranger</small></div>
+    <div class="online-ct"><div class="green-dot"></div><span id="online-ct">0 online</span></div>
+  </div>
+
+  <div class="main">
+    <!-- VIDEO COL -->
+    <div class="video-col">
+
+      <!-- Score banner -->
+      <div class="score-banner" id="score-banner" style="display:none">
+        <div class="score-half you-score">
+          <div>
+            <div class="score-label">You</div>
+            <div class="score-num" id="your-score">0</div>
+          </div>
+          <span style="font-size:18px">👑</span>
+        </div>
+        <div class="score-divider"></div>
+        <div class="score-half them-score">
+          <span style="font-size:18px">🗿</span>
+          <div>
+            <div class="score-label">Stranger</div>
+            <div class="score-num" id="their-score">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Challenge banner -->
+      <div class="challenge-bar hidden" id="challenge-bar">Waiting for challenge...</div>
+
+      <!-- Videos -->
+      <div class="videos" id="videos">
+        <!-- Stranger video -->
+        <div class="vid-wrap" id="stranger-wrap">
+          <video id="stranger-vid" autoplay playsinline></video>
+          <div class="vid-ph" id="stranger-ph">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <span>Stranger</span>
+          </div>
+          <!-- MOG flash on stranger -->
+          <div class="mog-flash" id="mog-flash-them">
+            <div class="mog-text">MOGGED 💀</div>
+          </div>
+          <div class="vid-tag">Stranger</div>
+
+          <!-- Connecting overlay -->
+          <div id="conn-overlay">
+            <div class="spin"></div>
+            <div class="conn-lbl" id="conn-lbl">Looking for a stranger...</div>
+            <div class="conn-sub" id="conn-sub">Matching you now</div>
+          </div>
+        </div>
+
+        <!-- Your video -->
+        <div class="vid-wrap" id="you-wrap">
+          <video id="you-vid" autoplay muted playsinline></video>
+          <div class="vid-ph" id="you-ph">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M23 7l-7 5 7 5V7z"/>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+            </svg>
+            <span>Camera off</span>
+          </div>
+          <!-- MOG flash on you -->
+          <div class="mog-flash" id="mog-flash-you">
+            <div class="mog-text">👑 MOG</div>
+          </div>
+          <div class="vid-tag you-tag">You</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+
+      <!-- MOG BUTTONS -->
+      <div class="mog-section" id="mog-section">
+        <div class="mog-label">Who mogged that round?</div>
+        <div class="mog-btns">
+          <button class="mog-btn btn-they-mogged" id="btn-they-mogged" onclick="voteThey()" disabled>
+            <span class="emoji">💀</span>
+            They mogged me
+          </button>
+          <button class="mog-btn btn-i-mogged" id="btn-i-mogged" onclick="voteMe()" disabled>
+            <span class="emoji">👑</span>
+            I mogged them
+          </button>
+        </div>
+        <div class="challenge-btn-wrap">
+          <button class="challenge-btn" id="challenge-btn" onclick="newChallenge()" disabled>
+            🎲 New challenge
+          </button>
+        </div>
+      </div>
+
+      <!-- REACTIONS -->
+      <div class="reactions-section" id="react-section">
+        <div class="reactions-label">React to them</div>
+        <div class="reactions">
+          <button class="react-btn" onclick="sendReaction('😂')">😂</button>
+          <button class="react-btn" onclick="sendReaction('🗿')">🗿</button>
+          <button class="react-btn" onclick="sendReaction('👑')">👑</button>
+          <button class="react-btn" onclick="sendReaction('💀')">💀</button>
+          <button class="react-btn" onclick="sendReaction('🔥')">🔥</button>
+          <button class="react-btn" onclick="sendReaction('🤡')">🤡</button>
+          <button class="react-btn" onclick="sendReaction('😤')">😤</button>
+          <button class="react-btn" onclick="sendReaction('🫅')">🫅</button>
+        </div>
+      </div>
+
+      <!-- CHAT -->
+      <div class="chat-head">
+        <div class="sdot" id="sdot"></div>
+        <span class="slabel" id="slabel">Not connected</span>
+      </div>
+      <div class="msgs" id="msgs"></div>
+      <div class="chat-input-area">
+        <textarea id="msg-in" placeholder="Trash talk..." rows="1"
+          onkeydown="handleKey(event)" oninput="handleTyping()" disabled></textarea>
+        <button id="send-btn" onclick="sendMsg()" disabled>↑</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottombar">
+    <div class="btns">
+      <button class="btn btn-stop" id="stop-btn" onclick="stopChat()" disabled>■ Stop</button>
+      <button class="btn btn-next" id="next-btn" onclick="nextStranger()">Next stranger ▶</button>
+    </div>
+    <div class="barinfo" id="bar-info">Press "Start Mogging" to begin</div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const ICE = { iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}] };
+
+let socket, pc, dc;
+let localStream = null;
+let connected = false, searching = false;
+let yourScore = 0, theirScore = 0;
+let typingTimer, theyTyping = false, typingRow = null;
+
+// ── START ─────────────────────────────────────────────────
+async function startWithCam() {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    const v = document.getElementById('you-vid');
+    v.srcObject = localStream;
+    document.getElementById('you-ph').style.display = 'none';
+  } catch(e) {
+    document.getElementById('you-ph').querySelector('span').textContent = 'No camera';
+  }
+  hideSplash();
+  initSocket();
+  findStranger();
+}
+
+function startTextOnly() {
+  hideSplash();
+  initSocket();
+  findStranger();
+}
+
+function hideSplash() {
+  const s = document.getElementById('splash');
+  s.style.opacity='0'; s.style.transition='opacity 0.3s';
+  setTimeout(()=>s.style.display='none',300);
+}
+
+// ── SOCKET ────────────────────────────────────────────────
+function initSocket() {
+  socket = io();
+
+  socket.on('online', n => document.getElementById('online-ct').textContent = `${n} online`);
+
+  socket.on('waiting', () => {
+    searching = true;
+    setOverlay(true, 'Waiting for a stranger...', 'You\'re in the queue');
+    setStatus('pulse', 'Searching...');
+    setInfo('Searching for someone to mog...');
+  });
+
+  socket.on('matched', async ({ role }) => {
+    searching = false;
+    yourScore = 0; theirScore = 0;
+    updateScores();
+    document.getElementById('score-banner').style.display = 'flex';
+    setOverlay(true, 'Connecting...', 'Setting up video...');
+    setStatus('pulse', 'Connecting...');
+    await setupPC(role);
+  });
+
+  socket.on('signal', async (data) => {
+    if (!pc) return;
+    try {
+      if (data.type==='offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(data));
+        const ans = await pc.createAnswer();
+        await pc.setLocalDescription(ans);
+        socket.emit('signal', ans);
+      } else if (data.type==='answer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(data));
+      } else if (data.candidate) {
+        await pc.addIceCandidate(new RTCIceCandidate(data));
+      }
+    } catch(e) { console.error(e); }
+  });
+
+  socket.on('msg', txt => { clearTyping(); addBubble('them', txt); });
+  socket.on('typing', v => { if(v) showTyping(); else clearTyping(); });
+
+  socket.on('got_point', ({ total }) => {
+    yourScore++;
+    updateScores();
+    flashMog('you');
+    sysmsg('👑 <b>+1 MOG POINT</b> — you mogged them!');
+  });
+
+  socket.on('gave_point', () => {
+    theirScore++;
+    updateScores();
+    flashMog('them');
+    sysmsg('💀 They think they mogged you');
+  });
+
+  socket.on('challenge', txt => {
+    const bar = document.getElementById('challenge-bar');
+    bar.textContent = '🎲 ' + txt;
+    bar.classList.remove('hidden');
+  });
+
+  socket.on('reaction', emoji => {
+    showReactionFloat(emoji);
+  });
+
+  socket.on('stranger_left', () => {
+    const winner = yourScore > theirScore ? 'You win! 👑' : yourScore < theirScore ? 'They win 💀' : 'Draw 🤝';
+    sysmsg(`<b>Stranger</b> disconnected. Final: You ${yourScore} – ${theirScore} Them. <b>${winner}</b>`);
+    teardown();
+    setInfo('Stranger left. Press Next to find someone else.');
+  });
+}
+
+// ── WEBRTC ────────────────────────────────────────────────
+async function setupPC(role) {
+  pc = new RTCPeerConnection(ICE);
+  if (localStream) localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+  pc.ontrack = e => {
+    const v = document.getElementById('stranger-vid');
+    if (!v.srcObject) v.srcObject = e.streams[0];
+    document.getElementById('stranger-ph').style.display = 'none';
+  };
+
+  pc.onicecandidate = e => { if (e.candidate) socket.emit('signal', e.candidate); };
+
+  if (role === 'caller') {
+    dc = pc.createDataChannel('game');
+    setupDC(dc);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('signal', offer);
+  } else {
+    pc.ondatachannel = e => { dc = e.channel; setupDC(dc); };
+  }
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') {
+      connected = true;
+      setOverlay(false);
+      setStatus('on', 'Connected — start mogging');
+      setInfo('Connected! Request a challenge and compete 🎲');
+      enableControls(true);
+      sysmsg('<b>Stranger</b> connected. Request a challenge to start!');
+    } else if (['failed','disconnected'].includes(pc.connectionState)) {
+      if (connected) { sysmsg('Connection lost.'); teardown(); }
+    }
+  };
+}
+
+function setupDC(channel) {
+  channel.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.t==='msg') { clearTyping(); addBubble('them', d.v); }
+    else if (d.t==='typing') { if(d.v) showTyping(); else clearTyping(); }
+  };
+}
+
+// ── GAME ACTIONS ──────────────────────────────────────────
+function voteThey() { socket.emit('vote_them'); disableVoteBtns(); }
+function voteMe() { socket.emit('vote_me'); disableVoteBtns(); }
+
+function disableVoteBtns() {
+  // Re-enable after 2s so they can vote multiple rounds
+  document.getElementById('btn-they-mogged').disabled = true;
+  document.getElementById('btn-i-mogged').disabled = true;
+  setTimeout(() => {
+    if (connected) {
+      document.getElementById('btn-they-mogged').disabled = false;
+      document.getElementById('btn-i-mogged').disabled = false;
+    }
+  }, 2000);
+}
+
+function newChallenge() { socket.emit('request_challenge'); }
+
+function sendReaction(emoji) {
+  if (!connected) return;
+  socket.emit('reaction', emoji);
+  // Show it on your own side too
+  showReactionFloat(emoji, true);
+}
+
+function showReactionFloat(emoji, fromMe = false) {
+  const wrap = document.getElementById(fromMe ? 'you-wrap' : 'stranger-wrap');
+  const el = document.createElement('div');
+  el.className = 'reaction-float';
+  el.textContent = emoji;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+function flashMog(who) {
+  const el = document.getElementById(who === 'you' ? 'mog-flash-you' : 'mog-flash-them');
+  el.classList.add('show');
+  setTimeout(() => { el.classList.remove('show'); el.classList.add('fade'); }, 600);
+  setTimeout(() => el.classList.remove('fade'), 1300);
+}
+
+function updateScores() {
+  document.getElementById('your-score').textContent = yourScore;
+  document.getElementById('their-score').textContent = theirScore;
+}
+
+// ── CHAT ──────────────────────────────────────────────────
+function sendMsg() {
+  const inp = document.getElementById('msg-in');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  if (dc && dc.readyState === 'open') {
+    dc.send(JSON.stringify({t:'msg',v:txt}));
+  }
+  addBubble('you', txt);
+  inp.value=''; inp.style.height='';
+  sendTyping(false);
+}
+
+function handleTyping() {
+  const inp = document.getElementById('msg-in');
+  inp.style.height='auto'; inp.style.height=Math.min(inp.scrollHeight,70)+'px';
+  sendTyping(true);
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(()=>sendTyping(false), 1800);
+}
+
+function sendTyping(v) {
+  if (dc && dc.readyState==='open') dc.send(JSON.stringify({t:'typing',v}));
+}
+
+function showTyping() {
+  if (theyTyping) return; theyTyping=true;
+  const m=document.getElementById('msgs');
+  typingRow=document.createElement('div');
+  typingRow.className='msgrow them';
+  typingRow.innerHTML='<div class="msglbl">Stranger</div><div class="typing-ind"><div class="td"></div><div class="td"></div><div class="td"></div></div>';
+  m.appendChild(typingRow); m.scrollTop=m.scrollHeight;
+}
+
+function clearTyping() {
+  if(!theyTyping)return; theyTyping=false;
+  if(typingRow){typingRow.remove();typingRow=null;}
+}
+
+function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();} }
+
+// ── NAVIGATION ────────────────────────────────────────────
+function stopChat() {
+  socket.emit('skip');
+  const winner = yourScore>theirScore?'You win! 👑':yourScore<theirScore?'They win 💀':'Draw 🤝';
+  sysmsg(`You stopped. Final score: You ${yourScore} – ${theirScore} Them. <b>${winner}</b>`);
+  teardown();
+  setInfo('Press Next to find a new stranger.');
+}
+
+function nextStranger() {
+  if (connected || searching) socket.emit('skip');
+  teardown();
+  if (socket) { yourScore=0; theirScore=0; setTimeout(findStranger, 200); }
+}
+
+function findStranger() {
+  document.getElementById('challenge-bar').classList.add('hidden');
+  document.getElementById('score-banner').style.display = 'none';
+  document.getElementById('msgs').innerHTML='';
+  setOverlay(true,'Looking for a stranger...','');
+  setStatus('pulse','Searching...');
+  socket.emit('find');
+}
+
+function teardown() {
+  connected=false; searching=false;
+  if(pc){pc.close();pc=null;} dc=null;
+  document.getElementById('stranger-vid').srcObject=null;
+  document.getElementById('stranger-ph').style.display='flex';
+  clearTyping();
+  enableControls(false);
+  setStatus('','Not connected');
+}
+
+function enableControls(on) {
+  ['btn-they-mogged','btn-i-mogged','challenge-btn','msg-in','send-btn','stop-btn'].forEach(id=>{
+    document.getElementById(id).disabled=!on;
+  });
+}
+
+// ── UI HELPERS ────────────────────────────────────────────
+function sysmsg(html) {
+  const m=document.getElementById('msgs');
+  const d=document.createElement('div'); d.className='sysmsg'; d.innerHTML=html;
+  m.appendChild(d); m.scrollTop=m.scrollHeight;
+}
+
+function addBubble(who,text) {
+  const m=document.getElementById('msgs');
+  const r=document.createElement('div'); r.className=`msgrow ${who}`;
+  r.innerHTML=`<div class="msglbl">${who==='you'?'You':'Stranger'}</div><div class="bubble">${esc(text)}</div>`;
+  m.appendChild(r); m.scrollTop=m.scrollHeight;
+}
+
+function setOverlay(show,lbl='',sub='') {
+  const o=document.getElementById('conn-overlay');
+  o.classList.toggle('gone',!show);
+  if(lbl)document.getElementById('conn-lbl').textContent=lbl;
+  if(sub!==undefined)document.getElementById('conn-sub').textContent=sub;
+}
+
+function setStatus(state,lbl) {
+  const d=document.getElementById('sdot');
+  d.className='sdot'+(state==='on'?' on':state==='pulse'?' pulse':'');
+  document.getElementById('slabel').textContent=lbl;
+}
+
+function setInfo(txt){document.getElementById('bar-info').textContent=txt;}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+</body>
+</html>
